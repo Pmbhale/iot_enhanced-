@@ -1,0 +1,11 @@
+streamlit
+plotly
+pandas
+reportlab
+email-validator
+secure-smtplib
+statsmodels
+matplotlib
+flask_cors 
+opencv  
+openpyxl 
