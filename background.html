@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Critical Space Animation</title>
+<style>
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: system-ui;
+}
+
+body {
+  background: radial-gradient(circle at top, #1d3557, #020617);
+}
+
+/* glowing blobs */
+.blob {
+  position: absolute;
+  width: 350px;
+  height: 350px;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  animation: float 12s infinite alternate;
+}
+
+.b1 { background:#38bdf8; top:-80px; left:-60px;}
+.b2 { background:#22c55e; bottom:-80px; right:-60px; animation-delay:3s;}
+.b3 { background:#6366f1; top:40%; left:60%; animation-delay:6s;}
+
+@keyframes float {
+  from { transform: translateY(0px); }
+  to { transform: translateY(-60px); }
+}
+
+/* particles */
+canvas {
+  position:absolute;
+  inset:0;
+}
+
+</style>
+</head>
+<body>
+
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div class="blob b3"></div>
+
+<canvas id="c"></canvas>
+
+<script>
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+
+function resize() {
+  c.width = innerWidth;
+  c.height = innerHeight;
+}
+resize();
+window.onresize = resize;
+
+let particles=[];
+
+for(let i=0;i<60;i++){
+  particles.push({
+    x:Math.random()*c.width,
+    y:Math.random()*c.height,
+    vx:(Math.random()-0.5)*0.5,
+    vy:(Math.random()-0.5)*0.5
+  });
+}
+
+function draw(){
+  ctx.clearRect(0,0,c.width,c.height);
+  particles.forEach(p=>{
+    p.x+=p.vx;
+    p.y+=p.vy;
+
+    if(p.x<0)p.x=c.width;
+    if(p.x>c.width)p.x=0;
+    if(p.y<0)p.y=c.height;
+    if(p.y>c.height)p.y=0;
+
+    ctx.fillStyle="rgba(200,230,255,0.5)";
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,1.5,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+
+</body>
+</html>
