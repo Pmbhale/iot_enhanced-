@@ -7,5 +7,5 @@ secure-smtplib
 statsmodels
 matplotlib
 flask_cors 
-opencv  
+opencv-python
 openpyxl 
