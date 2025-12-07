@@ -12,12 +12,6 @@ from streamlit.components.v1 import html
 from PIL import Image
 import numpy as np
 
-# Try to import cv2 and give a helpful message if missing
-try:
-    import cv2
-except Exception as e:
-    st.error("OpenCV (cv2) is required for face comparison. Install with `pip install opencv-python` and restart.")
-    raise
 
 # ---------------------------
 # Utility: sound player
@@ -53,64 +47,6 @@ def play_sound(file):
         </script>
         """, height=0)
 
-# ---------------------------
-# Image comparison helpers
-# ---------------------------
-def pil_to_cv2(img_pil):
-    """Convert PIL image to OpenCV BGR"""
-    img = np.array(img_pil.convert("RGB"))
-    return cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
-def resize_for_compare(img_cv, size=(400,400)):
-    return cv2.resize(img_cv, size, interpolation=cv2.INTER_AREA)
-
-def hist_score(img1, img2):
-    """Compare HSV histograms; return normalized score in [0,1] (1 = perfect)"""
-    img1 = resize_for_compare(img1)
-    img2 = resize_for_compare(img2)
-    hsv1 = cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)
-    hsv2 = cv2.cvtColor(img2, cv2.COLOR_BGR2HSV)
-    # use H and S channels
-    hist1 = cv2.calcHist([hsv1], [0,1], None, [50,60], [0,180,0,256])
-    hist2 = cv2.calcHist([hsv2], [0,1], None, [50,60], [0,180,0,256])
-    cv2.normalize(hist1, hist1)
-    cv2.normalize(hist2, hist2)
-    # compare correlation [-1,1] -> convert to [0,1]
-    corr = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
-    # clamp and normalize
-    score = (corr + 1.0) / 2.0
-    return float(np.clip(score, 0.0, 1.0))
-
-def orb_match_score(img1, img2):
-    """Compute ORB keypoint matches ratio -> returns value in [0,1]"""
-    img1_gray = cv2.cvtColor(resize_for_compare(img1), cv2.COLOR_BGR2GRAY)
-    img2_gray = cv2.cvtColor(resize_for_compare(img2), cv2.COLOR_BGR2GRAY)
-    orb = cv2.ORB_create(nfeatures=1000)
-    kp1, des1 = orb.detectAndCompute(img1_gray, None)
-    kp2, des2 = orb.detectAndCompute(img2_gray, None)
-    if des1 is None or des2 is None or len(kp1) < 5 or len(kp2) < 5:
-        return 0.0
-    # BFMatcher with Hamming
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
-    if not matches:
-        return 0.0
-    matches = sorted(matches, key=lambda x: x.distance)
-    # good matches threshold: distance < 70
-    good = [m for m in matches if m.distance < 70]
-    # ratio relative to min keypoints count
-    denom = min(len(kp1), len(kp2))
-    if denom == 0:
-        return 0.0
-    ratio = len(good) / denom
-    return float(np.clip(ratio, 0.0, 1.0))
-
-def combined_similarity(img_cv, admin_cv):
-    """Weighted combination of histogram correlation and ORB match ratio"""
-    h = hist_score(img_cv, admin_cv)
-    o = orb_match_score(img_cv, admin_cv)
-    # weights tuned for single-user reliability
-    return 0.6 * h + 0.4 * o, h, o
 
 # ---------------------------
 # Main login page
@@ -412,82 +348,55 @@ def login_page():
                 password = st.text_input("Password", type="password", placeholder="ENTER ENCRYPTED KEY", label_visibility="collapsed", key="password_input")
                 submitted = st.form_submit_button("⚡ INITIATE SYSTEM ACCESS", use_container_width=True)
 
-        # ---- camera capture for face login
-        # ---------- FACE LOGIN SECTION (FULL BLOCK, NO CHANGES REMOVED) ----------
+        # ---------------- CLOUD-SAFE FACE LOGIN (HISTOGRAM MATCH) ----------------
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.info("Or authenticate using your face (admin only). Click Capture and allow camera access.")
+        st.info("Or authenticate using your face (admin only). Click below to open camera.")
 
-        # Initialize camera toggle
+        # toggle
         if "show_camera" not in st.session_state:
             st.session_state.show_camera = False
 
-        # Show camera only after button click
         if not st.session_state.show_camera:
             if st.button("📸 Capture Face to Login", use_container_width=True):
                 st.session_state.show_camera = True
                 st.rerun()
+
         else:
-            # CAMERA OPENS ONLY NOW
-            captured_file = st.camera_input("Capture your face to login", key="camera_capture")
+            captured = st.camera_input("Capture your face")
 
-            # Load admin face template
-            admin_face_loaded = False
-            admin_face_cv = None
+            # load admin face
             try:
-                admin_pil = Image.open("admin_face.jpeg")
-                admin_face_cv = pil_to_cv2(admin_pil)  # BGR OpenCV
-                admin_face_loaded = True
-            except FileNotFoundError:
-                st.warning(
-                    "Registered face image `admin_face.jpg` not found. Place your admin face image in the app folder with the name `admin_face.jpg` to enable face login.")
+                admin_img = Image.open("admin_face.jpeg").convert("RGB").resize((150, 150))
+                admin_hist = np.array(admin_img.histogram(), dtype=float)
             except Exception as e:
-                st.error(f"Error loading admin_face.jpg: {e}")
+                st.error("⚠ admin_face.jpeg missing!")
+                admin_hist = None
 
-            # If camera capture provided, compare
-            if captured_file is not None and admin_face_loaded:
-                try:
-                    user_pil = Image.open(captured_file)
-                    user_cv = pil_to_cv2(user_pil)
+            if captured and admin_hist is not None:
 
-                    sim, hscore, oratio = combined_similarity(user_cv, admin_face_cv)
+                user_img = Image.open(captured).convert("RGB").resize((150, 150))
+                user_hist = np.array(user_img.histogram(), dtype=float)
 
-                    MATCH_THRESHOLD = 0.55  # combined
-                    HIST_THRESHOLD = 0.50  # fallback
+                # normalize histograms
+                admin_hist /= admin_hist.sum()
+                user_hist /= user_hist.sum()
 
-                    st.write(f"Similarity: **{sim:.2f}**  — (hist {hscore:.2f}, orb {oratio:.2f})")
+                # similarity using intersection
+                similarity = float(np.sum(np.minimum(admin_hist, user_hist)))
 
-                    # ---- STRONG SECURITY THRESHOLDS ----
-                    # ---- FINAL WORKING SECURITY THRESHOLDS ----
-                    # ---------------- STRICTEST SAFE LOGIN CHECK ----------------
+                st.write(f"Similarity Score: **{similarity:.2f}**")
 
-                    COMBINED_MIN = 0.50
-                    HIST_MIN = 0.45
-                    ORB_MIN = 0.39
-
-                    # Login allowed ONLY if ALL three checks pass
-                    if sim >= COMBINED_MIN and hscore >= HIST_MIN and oratio >= ORB_MIN:
-
-                        play_sound("success.mp3")
-
-                        with st.spinner("🔐 Face verified..."):
-                            time.sleep(1)
-
-                        st.success("✅ Face recognized. Access granted.")
-
-                        st.session_state.logged_in = True
-                        st.session_state.username = USER
-
-                        time.sleep(1.2)
-                        st.rerun()
-
-                    else:
-                        st.error(
-                            "❌ Face not recognized. This system can only be unlocked by the registered admin face.")
-
-
-                except Exception as e:
-                    st.error(f"Face comparison error: {e}")
+                # Threshold tuned for Streamlit Cloud
+                if similarity > 0.55:
+                    play_sound("success.mp3")
+                    st.success("✅ Face recognized. Access granted.")
+                    st.session_state.logged_in = True
+                    st.session_state.username = "admin"
+                    time.sleep(1.2)
+                    st.rerun()
+                else:
+                    st.error("❌ Face not recognized. Try again.")
 
         # ---- handle password login
         if submitted:
