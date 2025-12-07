@@ -876,6 +876,10 @@ def analytics_page():
 
 
 def reports_page():
+# --- REQUIRED FIX: initialize missing session states ---
+    if "reports" not in st.session_state:
+        st.session_state.reports = []
+
     if "email_config" not in st.session_state:
         st.session_state.email_config = {
             "sender_email": "",
@@ -885,6 +889,9 @@ def reports_page():
             "password": "",
             "configured": False
         }
+
+    if "hist" not in st.session_state:
+        st.session_state.hist = pd.DataFrame(columns=["t", "Temp", "Hum", "Press", "CO2", "PM25"])
 
     # USER LOGIN GUARD
     if not st.session_state.get("logged_in", False):
@@ -2253,3 +2260,4 @@ def main():
 # Run the app
 if __name__ == "__main__":
     main()
+
