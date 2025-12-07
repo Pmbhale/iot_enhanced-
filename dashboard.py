@@ -877,10 +877,7 @@ def analytics_page():
 
 def reports_page():
     # ----- LOGIN GUARD -----
-    if not st.session_state.logged_in:
-        st.stop()
-# --- SAFE INITIALIZATION FOR CLOUD ---
-if "email_config" not in st.session_state:
+    if "email_config" not in st.session_state:
     st.session_state.email_config = {
         "sender_email": "",
         "receiver_email": "",
@@ -888,6 +885,10 @@ if "email_config" not in st.session_state:
         "smtp_port": "",
         "password": ""
     }
+    if not st.session_state.logged_in:
+        st.stop()
+# --- SAFE INITIALIZATION FOR CLOUD ---
+
 
     # Title
     st.markdown("<div class='hero'>📋 Comprehensive Reports</div>", unsafe_allow_html=True)
@@ -2253,4 +2254,5 @@ def main():
 # Run the app
 if __name__ == "__main__":
     main()
+
 
