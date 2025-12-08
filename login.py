@@ -388,7 +388,7 @@ def login_page():
                 st.write(f"Similarity Score: **{similarity:.2f}**")
 
                 # Threshold tuned for Streamlit Cloud
-                if similarity > 0.55:
+                if similarity > 0.85:
                     play_sound("success.mp3")
                     st.success("✅ Face recognized. Access granted.")
                     st.session_state.logged_in = True
@@ -565,3 +565,4 @@ if __name__ == "__main__":
         login_page()
     else:
         dashboard_page()
+
