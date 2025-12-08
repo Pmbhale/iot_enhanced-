@@ -367,7 +367,7 @@ def login_page():
 
             # load admin face
             try:
-                admin_img = Image.open("admin_face.jpeg").convert("RGB").resize((150, 150))
+                admin_img = Image.open("admin_face.jpg").convert("RGB").resize((150, 150))
                 admin_hist = np.array(admin_img.histogram(), dtype=float)
             except Exception as e:
                 st.error("⚠ admin_face.jpeg missing!")
@@ -565,4 +565,5 @@ if __name__ == "__main__":
         login_page()
     else:
         dashboard_page()
+
 
